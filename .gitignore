@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Blender
+*.blend1
+*.blend2
+/*.zip
+
+# Building / test data: the COLLADA models are copyrighted and must never be committed
+*.dae
+*.DAE
+*.zae
+*.kmz
+*.skp
+*.skb
+*.blend
+textures/
+test_models/
+
+# Test output
+unite_test/
+*.jsonl
+
+# OS / editors
+.DS_Store
+*.lnk
+.vscode/
+.idea/
