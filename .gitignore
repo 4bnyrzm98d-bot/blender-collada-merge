@@ -21,6 +21,8 @@ test_models/
 # Test output
 unite_test/
 *.jsonl
+*.glb
+*.gltf
 
 # OS / editors
 .DS_Store
