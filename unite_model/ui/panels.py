@@ -62,6 +62,7 @@ class UNITE_PT_main(bpy.types.Panel):
                   icon='CHECKMARK' if ok else 'ERROR')
         if "unite_test_back_hits" in obj:
             col.label(text=f"Back hits {obj['unite_test_back_hits']}, "
+                           f"from below {obj.get('unite_test_bottom_back_hits', 0)}, "
                            f"hole rays {obj['unite_test_hole_rays']}")
         reason = obj.get(VERDICT_REASON_KEY)
         if reason:
@@ -162,6 +163,7 @@ class UNITE_PT_test(_SubPanel, bpy.types.Panel):
             col = box.column()
             col.prop(s, "test_grid")
             col.prop(s, "test_max_back_hits")
+            col.prop(s, "test_max_bottom_hits")
             col.prop(s, "test_max_holes")
 
 

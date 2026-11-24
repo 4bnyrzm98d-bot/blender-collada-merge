@@ -24,11 +24,14 @@ the Import section shows a red warning.
    - narrow slits (up to 0.4 m) are bridged, missing planar faces (e.g. floors) are filled;
    - faces are oriented outward (ray test with a crack-leak probe); hidden inner faces are removed;
    - free-standing faces get a reversed twin, faces in niches / under eaves a 1 cm offset twin
-     with rims; shading uses area-weighted custom normals.
+     with rims; faces that point up with nothing below them (passage floors, steps, cornice
+     tops, eaves without soffit) get a 1 cm offset back face closed by a rim, so the bottom of
+     the model is never red; shading uses area-weighted custom normals.
 3. **Test** – right after the repair (or with *Test All Models* later) the result is
    "photographed" with rays from 97 directions above the horizon and compared with a reference
    (the same model without orientation and without removed faces). A model is **Correct** when
-   - no ray from outside lands on the back of a face (red in Face Orientation),
+   - no ray from outside lands on the back of a face (red in Face Orientation) – oblique views
+     from above and the sides, plus vertical rays from below for the bottom of the model,
    - no ray passes where the original has a visible face (a deleted face),
    - there are no duplicate and no zero-area faces.
 
@@ -36,8 +39,9 @@ the Import section shows a red warning.
 
    Otherwise it is **To check**, with the reason shown in the panel; *Select Problem Faces*
    opens the model in Edit Mode with the faces seen from the back selected. The models are then
-   moved into the collections **Correct** (green) and **To check** (red) and laid out as two
-   blocks. Limits and ray resolution are under *Test Options*.
+   moved into the collections **Correct** (green) and **To check** (red), inside them into a
+   collection per import folder (`1.NAM`, `1.NAM (to check)`, …), and laid out as two sections
+   side by side, one block per folder. Limits and ray resolution are under *Test Options*.
 4. **Export glTF 2.0 (.glb)** – *Export Correct*, *Export To check*, *Export All* or
    *Export Selected* into the chosen folder; import subfolders are mirrored. With
    *Correct / To_check Subfolders* the files go to `Correct/…` and `To_check/…`.

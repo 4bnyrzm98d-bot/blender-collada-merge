@@ -155,6 +155,11 @@ class UniteModelSettings(bpy.types.PropertyGroup):
                     "Orientation). 0 = strict; at the default resolution a model has about "
                     "200 000 - 500 000 hits",
     )
+    test_max_bottom_hits: IntProperty(
+        name="Max Back Hits from Below", default=0, min=0,
+        description="Allowed vertical rays from under the model that land on the back of a "
+                    "face (the bottom shows red)",
+    )
     test_max_holes: IntProperty(
         name="Max Hole Rays", default=0, min=0,
         description="Allowed rays that pass where the original model has a visible face",

@@ -23,9 +23,13 @@ removing hidden faces (so nothing visible is missing in it).
   do not count.
 * hole - a ray hits the reference but passes the result (or lands more than
   1 cm deeper): a visible face was deleted.
+* back hit from below - a vertical ray from under the model lands on the
+  back of a face: the bottom of the model shows red (a passage floor, a
+  step or an eave seen from below).
 
-Only views from above the horizon are used: views from below enter the open
-bottom of a model and see things nobody can see. A hit counts only when four
+Oblique views come only from above the horizon: from below they enter the
+open bottom of a model and see things nobody can see. The bottom itself is
+checked with vertical rays from below. A hit counts only when four
 rays shifted by 2 cm hit at a similar depth ("solid" view), so views through
 hairline cracks between SketchUp faces are ignored. The view directions differ
 from the ones the repair uses, so the test does not just confirm itself.
@@ -135,7 +139,25 @@ def verify_bmesh(bm, ref_bm, grid=120, probe=0.02, depth_tol=0.25, progress=None
                         back += 1
                         back_faces[idx] = back_faces.get(idx, 0) + 1
         if progress is not None:
-            progress((n + 1) / len(VIEWS))
+            progress(0.95 * (n + 1) / len(VIEWS))
+
+    # Straight from below: the bottom of the model must not show the back of
+    # a face (a floor of a passage, a step, an eave without a soffit).
+    up = Vector((0.0, 0.0, 1.0))
+    bottom, bottom_faces = 0, {}
+    ub, wb = Vector((1.0, 0.0, 0.0)), Vector((0.0, 1.0, 0.0))
+    for a in range(grid):
+        x = lo.x + (hi.x - lo.x) * (a + 0.5) / grid
+        for b in range(grid):
+            o = Vector((x, lo.y + (hi.y - lo.y) * (b + 0.5) / grid, lo.z - 1.0))
+            _loc, _n, idx, dist = bvh.ray_cast(o, up, far)
+            if idx is None or normals[idx].z <= 0.0 or idx in has_twin:
+                continue
+            if solid(bvh, o, -up, ub, wb, dist):
+                bottom += 1
+                bottom_faces[idx] = bottom_faces.get(idx, 0) + 1
+    if progress is not None:
+        progress(1.0)
 
     worst = sorted(back_faces.items(), key=lambda x: -x[1])
     metrics = {
@@ -143,10 +165,14 @@ def verify_bmesh(bm, ref_bm, grid=120, probe=0.02, depth_tol=0.25, progress=None
         "back_hits": back,
         "back_hits_base": back_base,
         "faces_seen_back": len(back_faces),
+        "bottom_back_hits": bottom,
+        "faces_seen_back_below": len(bottom_faces),
         "hole_rays": holes,
         "faces_missing": len(hole_faces),
         "max_back_one_face": worst[0][1] if worst else 0,
-        "back_face_ids": [i for i, _c in worst[:200]],
+        "back_face_ids": ([i for i, _c in worst[:200]] +
+                          [i for i in sorted(bottom_faces, key=lambda i: -bottom_faces[i])
+                           if i not in back_faces][:100]),
         "worst_back": [{"face": i, "hits": c, "front": front_faces.get(i, 0),
                         "area": round(bm.faces[i].calc_area(), 4)} for i, c in worst[:5]],
         "grid": grid,
@@ -163,7 +189,7 @@ def mesh_bmesh(mesh):
     return bm
 
 
-def judge(metrics, max_back_hits=0, max_holes=0, allow_inconsistent=True):
+def judge(metrics, max_back_hits=0, max_holes=0, max_bottom_hits=0, allow_inconsistent=True):
     """(verdict, reasons) from the metrics of verify_bmesh.
 
     Strict by default: on the 146 test houses every model with even one
@@ -175,6 +201,9 @@ def judge(metrics, max_back_hits=0, max_holes=0, allow_inconsistent=True):
     reasons = []
     if metrics["back_hits"] > max_back_hits:
         reasons.append(f"{metrics['back_hits']} back hits on {metrics['faces_seen_back']} face(s)")
+    if metrics.get("bottom_back_hits", 0) > max_bottom_hits:
+        reasons.append(f"{metrics['bottom_back_hits']} back hits from below on "
+                       f"{metrics['faces_seen_back_below']} face(s)")
     if metrics["hole_rays"] > max_holes:
         reasons.append(f"{metrics['hole_rays']} hole rays ({metrics['faces_missing']} missing face(s))")
     if metrics["duplicate_faces"]:

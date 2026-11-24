@@ -14,6 +14,7 @@
 
 """Outward orientation of faces, removal of hidden faces, two-sided faces."""
 
+import math
 from collections import defaultdict, deque
 
 import bmesh
@@ -205,6 +206,63 @@ def orient_outward(bm, ray_count=48, remove_enclosed=True, on_ground=True,
     }
 
 
+def _sample_points(face, inset=0.05, max_samples=400):
+    """Points spread over `face`: a triangular grid (about 10 cm apart, at most
+    `max_samples`) and five points along every edge, `inset` inside."""
+    c = face.calc_center_median()
+    pts = [c]
+    for e in face.edges:
+        a, b = e.verts[0].co, e.verts[1].co
+        for t in (0.1, 0.3, 0.5, 0.7, 0.9):
+            p = a.lerp(b, t)
+            inward = c - p
+            if inward.length > 1e-6:
+                p = p + inward * min(0.5, inset / inward.length)
+            pts.append(p)
+    vs = [v.co for v in face.verts]
+    tris = [(vs[0], vs[k], vs[k + 1]) for k in range(1, len(vs) - 1)]
+    spacing = max(0.1, math.sqrt(max(face.calc_area(), 1e-9) / max_samples))
+    for a, b, d in tris:
+        n = max(2, min(40, math.ceil(max((b - a).length, (d - a).length, (d - b).length) / spacing)))
+        for i in range(1, n):
+            for j in range(1, n - i):
+                pts.append(a + (b - a) * (i / n) + (d - a) * (j / n))
+    return pts
+
+
+def mark_open_undersides(bm, min_up=0.3, eps=1e-3, inset=0.05, max_samples=400):
+    """Mark faces that point up but have nothing below them (value 3 in
+    TWO_SIDED_LAYER), so make_two_sided gives them a back face 1 cm below,
+    closed by a rim all around.
+
+    These are surfaces with only one side modelled: the floor of a passage or
+    an arcade, a step, the top of a cornice or an eave without a soffit. From
+    above they are right; seen from below their back shows (red in Face
+    Orientation). A face counts when any of its sample points (a grid over
+    the face, at most `max_samples`, plus points along every edge `inset`
+    inside) has no face straight below: a roof whose eave overhangs without a
+    soffit, or a face seen from below through a gap in a lower floor, shows
+    red there too. Where something is below, the back face stays hidden
+    inside the model.
+    Faces already two-sided are left alone. Returns the number marked.
+    """
+    layer = bm.faces.layers.int.get(TWO_SIDED_LAYER) or bm.faces.layers.int.new(TWO_SIDED_LAYER)
+    bm.normal_update()
+    bvh = BVHTree.FromBMesh(bm)
+    down = Vector((0.0, 0.0, -1.0))
+    far = 1e5
+    marked = []
+    for f in bm.faces:
+        if f[layer] or f.normal.z < min_up:
+            continue
+        if any(bvh.ray_cast(p + down * eps, down, far)[0] is None
+               for p in _sample_points(f, inset, max_samples)):
+            marked.append(f)
+    for f in marked:
+        f[layer] = 3
+    return len(marked)
+
+
 def make_two_sided(bm, inner_offset=0.01):
     """Give every face marked in TWO_SIDED_LAYER a reversed back face.
 
@@ -216,6 +274,10 @@ def make_two_sided(bm, inner_offset=0.01):
     `inner_offset` (1 cm) and along free edges a narrow rim joins the two,
     like Solidify. From outside the original is seen, from the niche the back
     face, over a free edge the rim - no coincident faces, nothing flickers.
+    Value 3 (an underside left open: the top of a cornice, the floor of a
+    passage): like 2, but the rim runs along the whole outline of the marked
+    area, also where it meets other faces - otherwise the 1 cm slit between
+    the back face and the side faces shows the back from oblique views.
     The back faces get their own vertices, so no later weld can merge them.
     Returns the number of faces made two-sided.
     """
@@ -223,19 +285,26 @@ def make_two_sided(bm, inner_offset=0.01):
     if layer is None:
         return 0
     faces = [f for f in bm.faces if f[layer]]
-    for value in (1, 2):
+    for value in (1, 2, 3):
         group = [f for f in faces if f[layer] == value]
         if not group:
             continue
         normals = {f: f.normal.copy() for f in group}
-        free = [e for e in {e for f in group for e in f.edges} if len(e.link_faces) == 1] if value == 2 else []
+        members = set(group)
+        edges = {e for f in group for e in f.edges}
+        if value == 2:
+            free = [e for e in edges if len(e.link_faces) == 1]
+        elif value == 3:  # outline of the marked area
+            free = [e for e in edges if sum(1 for g in e.link_faces if g in members) == 1]
+        else:
+            free = []
         dup = bmesh.ops.duplicate(bm, geom=group)
         face_map = dup["face_map"]
         vmap = {}
         for f in group:
             for v, tv in zip(f.verts, face_map[f].verts):
                 vmap[v] = tv
-        if value == 2:
+        if value >= 2:
             shift = defaultdict(Vector)
             for f in group:
                 for v in face_map[f].verts:
@@ -248,7 +317,7 @@ def make_two_sided(bm, inner_offset=0.01):
         for f in twins:
             f[layer] = 0
         for e in free:
-            f = e.link_faces[0]
+            f = next(g for g in e.link_faces if g in members)
             v1, v2 = e.verts
             t1, t2 = vmap.get(v1), vmap.get(v2)
             if t1 is None or t2 is None:

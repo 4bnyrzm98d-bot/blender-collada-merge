@@ -75,7 +75,7 @@ def set_verdict(collection, obj, verdict, reasons, metrics=None):
         target[VERDICT_KEY] = verdict
         target[VERDICT_REASON_KEY] = reason
     if obj is not None and metrics is not None:
-        for key in ("back_hits", "hole_rays", "faces_seen_back", "faces_missing",
+        for key in ("back_hits", "bottom_back_hits", "hole_rays", "faces_seen_back", "faces_missing",
                     "duplicate_faces", "zero_area", "inconsistent_edges", "rays_hit"):
             obj["unite_test_" + key] = metrics[key]
         obj["unite_test_back_faces"] = metrics["back_face_ids"]
@@ -105,7 +105,8 @@ def test_result(collection, obj, s, progress=None):
             if b is not None:
                 b.free()
     verdict, reasons = judge(metrics, max_back_hits=s.test_max_back_hits,
-                             max_holes=s.test_max_holes)
+                             max_holes=s.test_max_holes,
+                             max_bottom_hits=s.test_max_bottom_hits)
     metrics["seconds"] = round(time.time() - t0, 2)
     set_verdict(collection, obj, verdict, reasons, metrics)
     return verdict, reasons, metrics
@@ -144,6 +145,7 @@ def repair_collection(context, collection, s, progress=None):
             stats["test_reason"] = "; ".join(reasons)
             if metrics is not None:
                 stats["test_back_hits"] = metrics["back_hits"]
+                stats["test_bottom_back_hits"] = metrics["bottom_back_hits"]
                 stats["test_hole_rays"] = metrics["hole_rays"]
                 stats["test_seconds"] = metrics["seconds"]
     if obj is None:

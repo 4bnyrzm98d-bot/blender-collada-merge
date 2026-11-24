@@ -163,16 +163,10 @@ def append_model(context, coll, spacing=10.0, reserve_result=False):
     context.view_layer.update()
 
 
-def arrange_models(context, groups, spacing=10.0, reserve_result=False):
-    """Lay imported models out in a grid instead of on top of each other.
-
-    `groups` is a list of lists of collections (one list per folder). Every
-    folder becomes a block of rows; blocks follow each other along -Y, below
-    whatever else is in the scene.
-    """
-    scene = context.scene
-    placed = [c for g in groups for c in g]
-    y = _free_row_top(context, placed, spacing)
+def _layout_groups(groups, x0, y, spacing, reserve_result):
+    """Place `groups` (lists of model collections) as blocks of rows starting
+    at (x0, y) and going along -Y. Returns the largest x used."""
+    max_x = x0
     for group in groups:
         items = [(c, _model_box(c, reserve_result and not has_result(c))) for c in group]
         items = [(c, b) for c, b in items if b is not None]
@@ -182,13 +176,33 @@ def arrange_models(context, groups, spacing=10.0, reserve_result=False):
         for r in range(0, len(items), cols):
             row = items[r:r + cols]
             depth = max(b[1].y - b[0].y for _c, b in row)
-            x = 0.0
+            x = x0
             for coll, (lo, hi) in row:
-                delta = Vector((x - lo.x, y - hi.y, 0.0))
-                shift_model(coll, delta)
+                shift_model(coll, Vector((x - lo.x, y - hi.y, 0.0)))
                 x += (hi.x - lo.x) + spacing
+            max_x = max(max_x, x - spacing)
             y -= depth + spacing
         y -= spacing  # extra gap between folders
+    return max_x
+
+
+def arrange_sections(context, sections, spacing=10.0, reserve_result=False):
+    """Lay models out in sections side by side (e.g. Correct | To check).
+
+    `sections` is a list of sections, a section a list of groups (one per
+    folder), a group a list of model collections. Every folder becomes a block
+    of rows; the blocks of a section go along -Y, the next section starts to
+    the right of the previous one. Everything starts below the rest of the
+    scene.
+    """
+    scene = context.scene
+    placed = [c for sec in sections for g in sec for c in g]
+    y = _free_row_top(context, placed, spacing)
+    x0 = 0.0
+    for section in sections:
+        if not any(section):
+            continue
+        x0 = _layout_groups(section, x0, y, spacing, reserve_result) + 4.0 * spacing
     if LAYOUT_KEY in scene:  # the next single import starts a new row
         del scene[LAYOUT_KEY]
     # matrix_world of moved objects is only refreshed by a depsgraph update;
@@ -196,19 +210,38 @@ def arrange_models(context, groups, spacing=10.0, reserve_result=False):
     context.view_layer.update()
 
 
-def scene_model_groups(context):
-    """Every imported model in the scene, grouped by its parent collection."""
-    groups = {}
+def arrange_models(context, groups, spacing=10.0, reserve_result=False):
+    """Lay imported models out in a grid instead of on top of each other.
 
-    def walk(parent):
-        for child in parent.children:
-            if child.get("unite_source"):
-                groups.setdefault(parent.name, []).append(child)
-            else:
-                walk(child)
-    walk(context.scene.collection)
-    return [sorted(g, key=lambda c: c.get("unite_source", c.name)) for _k, g in
-            sorted(groups.items())]
+    `groups` is a list of lists of collections (one list per folder). Every
+    folder becomes a block of rows; blocks follow each other along -Y, below
+    whatever else is in the scene.
+    """
+    arrange_sections(context, [groups], spacing, reserve_result)
+
+
+def scene_model_sections(context):
+    """Every imported model in the scene: one section per top-level collection
+    (e.g. "Correct", "To check", an imported folder), in it one group per
+    parent collection, in Outliner order."""
+    sections = []
+    for top in context.scene.collection.children:
+        groups = {}
+
+        def walk(parent):
+            for child in parent.children:
+                if child.get("unite_source"):
+                    groups.setdefault(parent.name, []).append(child)
+                else:
+                    walk(child)
+        if top.get("unite_source"):
+            groups[context.scene.collection.name] = [top]
+        else:
+            walk(top)
+        if groups:
+            sections.append([sorted(g, key=lambda c: c.get("unite_source", c.name))
+                             for g in groups.values()])
+    return sections
 
 
 def _has_own_meshes(coll):

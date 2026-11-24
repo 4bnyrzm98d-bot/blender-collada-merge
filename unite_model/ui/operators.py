@@ -23,8 +23,9 @@ from bpy_extras.io_utils import ImportHelper
 from ..batch import process_dae_file, write_report
 from ..io_collada import collada_importer_available, import_dae, list_dae_files
 from ..io_gltf import export_glb, export_name, export_subdir, verdict_folder
-from ..scene import (append_model, arrange_models, find_layer_collection, folder_collection,
-                     move_collection, scene_model_groups, target_collections)
+from ..scene import (append_model, arrange_models, arrange_sections, find_layer_collection,
+                     folder_collection, move_collection, scene_model_sections,
+                     target_collections)
 from ..sorting import results_for_export, sort_scene
 from ..tags import REMOVED_TAG, RESULT_TAG
 from ..verify import VERDICT_CORRECT, VERDICT_TO_CHECK
@@ -176,19 +177,19 @@ class UNITE_OT_import_dae(bpy.types.Operator, ImportHelper):
 
 
 class UNITE_OT_arrange(bpy.types.Operator):
-    """Lay out every imported model in the scene in a grid (one block per folder collection, or Correct / To check), so no model overlaps another. Only whole models move; exports keep the original coordinates"""
+    """Lay out every imported model in the scene in a grid: one section per top-level collection (Correct and To check side by side), one block per folder, so no model overlaps another. Only whole models move; exports keep the original coordinates"""
     bl_idname = "unite_model.arrange"
     bl_label = "Arrange Scene"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         _object_mode(context)
-        groups = scene_model_groups(context)
-        count = sum(len(g) for g in groups)
+        sections = scene_model_sections(context)
+        count = sum(len(g) for sec in sections for g in sec)
         if not count:
             self.report({'WARNING'}, "No imported models in the scene")
             return {'CANCELLED'}
-        arrange_models(context, groups, reserve_result=get_settings(context).place_beside)
+        arrange_sections(context, sections, reserve_result=get_settings(context).place_beside)
         self.report({'INFO'}, f"Arranged {count} model(s)")
         return {'FINISHED'}
 

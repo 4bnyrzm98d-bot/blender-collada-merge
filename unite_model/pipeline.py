@@ -23,7 +23,7 @@ from mathutils import Vector
 
 from .geometry.build import exact_area, build_bmesh, remove_back_faces, remove_degenerate, weld
 from .geometry.fill import close_gaps, fill_missing_faces
-from .geometry.orient import make_two_sided, orient_outward
+from .geometry.orient import make_two_sided, mark_open_undersides, orient_outward
 from .geometry.unrelated import describe_parts, find_unrelated
 from .tags import FLOOR_LAYER, REMOVED_TAG, RESULT_TAG, TWO_SIDED_LAYER, is_generated
 
@@ -200,6 +200,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
 
     # Last geometry step: nothing may weld after the twins exist.
     if two_sided:
+        stats["open_undersides"] = mark_open_undersides(bm) if fix_normals else 0
         stats["two_sided_faces"] = make_two_sided(bm)
     else:
         layer = bm.faces.layers.int.get(TWO_SIDED_LAYER)

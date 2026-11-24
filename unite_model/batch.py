@@ -72,7 +72,8 @@ def process_dae_file(context, filepath, out_dir, rel_stem, s, keep_in_scene=Fals
             out_path = os.path.join(out_dir, rel_stem + ".glb")
         export_glb(context, obj, out_path, s)
         row["glb"] = out_path
-        for key in ("test_back_hits", "test_hole_rays", "test_seconds","source_objects", "faces_in", "faces_out", "flipped",
+        for key in ("test_back_hits", "test_bottom_back_hits", "test_hole_rays", "test_seconds",
+                    "source_objects", "faces_in", "faces_out", "flipped",
                     "back_faces_removed", "enclosed_removed", "two_sided_faces",
                     "unrelated_parts", "unrelated_faces", "unrelated_area",
                     "buildings_found", "main_building_by", "unrelated_summary"):
@@ -89,6 +90,7 @@ def process_dae_file(context, filepath, out_dir, rel_stem, s, keep_in_scene=Fals
 
 
 REPORT_COLUMNS = ["file", "status", "test", "test_reason", "test_back_hits",
+                  "test_bottom_back_hits",
                   "test_hole_rays", "glb", "source_objects", "faces_in", "faces_out",
                   "flipped", "back_faces_removed", "enclosed_removed", "two_sided_faces",
                   "unrelated_parts", "unrelated_faces", "unrelated_area",
