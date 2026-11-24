@@ -8,7 +8,7 @@
 import bpy, glob, os, subprocess, tempfile
 
 MODELS_DIR = None        # folder searched recursively for *.dae
-PLUGIN_PATH = None       # the plugin's __init__.py
+PLUGIN_PATH = None       # the plugin folder (unite_model/) or its __init__.py
 RUNNER_PATH = None       # tools/batch_runner.py from this repository
 WORKERS = 4
 OUT_DIR = os.path.join(tempfile.gettempdir(), "unite_test")

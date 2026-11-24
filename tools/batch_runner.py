@@ -1,7 +1,7 @@
 # Batch test of the Unite Model plugin on many .dae files.
 # Runs INSIDE a background Blender process, never in the user's open session:
 #
-#   blender --background --python batch_runner.py -- <plugin __init__.py> <list.txt> <out.jsonl>
+#   blender --background --python batch_runner.py -- <plugin folder or its __init__.py> <list.txt> <out.jsonl>
 #
 # list.txt holds one .dae path per line. For every file it imports the model
 # (needs a COLLADA importer that registers bpy.ops.import_scene.collada, e.g.
@@ -10,13 +10,16 @@
 # Use launch_batch.py to start several of these in parallel and
 # summarize_batch.py to read the results.
 
-import bpy, bmesh, sys, json, time, math, traceback, importlib.util
+import bpy, bmesh, os, sys, json, time, math, traceback, importlib.util
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 args = sys.argv[sys.argv.index("--") + 1:]
 plugin_path, list_path, out_path = args[0], args[1], args[2]
-spec = importlib.util.spec_from_file_location("unite_model_test", plugin_path)
+# the plugin is a package: accept its folder or its __init__.py
+plugin_dir = plugin_path if os.path.isdir(plugin_path) else os.path.dirname(plugin_path)
+spec = importlib.util.spec_from_file_location(
+    "unite_model_test", os.path.join(plugin_dir, "__init__.py"), submodule_search_locations=[plugin_dir])
 mod = importlib.util.module_from_spec(spec)
 sys.modules["unite_model_test"] = mod
 spec.loader.exec_module(mod)

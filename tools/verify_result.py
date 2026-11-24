@@ -19,12 +19,12 @@
 # through the open bottom of a model is not a real view: it once made the
 # deleted, truly hidden attic floors look like holes.
 
-import bpy, bmesh, math, sys, importlib.util
+import bpy, bmesh, math, os, sys, importlib.util
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 RESULT_NAME = None
-PLUGIN_PATH = None   # e.g. "<repo>/unite_model/__init__.py"
+PLUGIN_PATH = None   # e.g. "<repo>/unite_model" (folder or its __init__.py)
 GRID = 150
 
 
@@ -36,7 +36,10 @@ def load_plugin():
         if key.endswith("unite_model") and hasattr(mod, "unite_collection"):
             return mod
     if PLUGIN_PATH:
-        spec = importlib.util.spec_from_file_location("unite_model_dev", PLUGIN_PATH)
+        plugin_dir = PLUGIN_PATH if os.path.isdir(PLUGIN_PATH) else os.path.dirname(PLUGIN_PATH)
+        spec = importlib.util.spec_from_file_location(
+            "unite_model_dev", os.path.join(plugin_dir, "__init__.py"),
+            submodule_search_locations=[plugin_dir])
         mod = importlib.util.module_from_spec(spec)
         sys.modules["unite_model_dev"] = mod
         spec.loader.exec_module(mod)
