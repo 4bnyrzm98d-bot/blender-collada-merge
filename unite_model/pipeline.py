@@ -15,6 +15,7 @@
 """The repair pipeline: collection in, one united object out (no UI, no scene layout)."""
 
 import math
+import time
 from collections import defaultdict
 
 import bmesh
@@ -110,6 +111,18 @@ def remove_previous_results(collection):
                 bpy.data.meshes.remove(me)
 
 
+class _Laps:
+    """Seconds spent in each pipeline step, stored as stats["time_<step>"]."""
+
+    def __init__(self):
+        self.t = time.perf_counter()
+
+    def __call__(self, stats, step):
+        now = time.perf_counter()
+        stats["time_" + step] = round(now - self.t, 3)
+        self.t = now
+
+
 def source_objects(collection):
     """The imported mesh objects of a model (results of earlier runs excluded)."""
     return [o for o in collection.all_objects
@@ -132,6 +145,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
     if not sources:
         return None, None, {"error": "no mesh objects"}, None
 
+    lap = _Laps()
     bm, materials, skipped = build_bmesh(sources)
     stats = {
         "source_objects": len(sources),
@@ -139,6 +153,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
         "verts_in": len(bm.verts),
         "invalid_faces_skipped": skipped,
     }
+    lap(stats, "build")
 
     removed, back = remove_back_faces(bm, merge_distance)
     stats["back_faces_removed"] = removed
@@ -146,6 +161,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
                               if back is not None and materials[back] else None)
     stats["verts_welded"] = weld(bm, merge_distance)
     stats["degenerate_removed"] = remove_degenerate(bm, merge_distance)
+    lap(stats, "weld")
 
     # Unrelated geometry goes before orientation: a backdrop blocks the rays
     # and a map underlay would define the ground level.
@@ -175,6 +191,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
                                                    if f.index not in doomed],
                                  context='FACES')
             bmesh.ops.delete(bm, geom=[bm.faces[i] for i in doomed], context='FACES')
+    lap(stats, "unrelated")
 
     if close_gap and bm.faces:
         count, area = close_gaps(bm, close_gap, merge_distance)
@@ -185,6 +202,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
         count, area = fill_missing_faces(bm)
         stats["holes_filled"] = count
         stats["hole_area"] = round(area, 2)
+    lap(stats, "fill")
 
     if fix_normals and bm.faces:
         stats.update(orient_outward(bm, ray_count, remove_enclosed, on_ground))
@@ -196,6 +214,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
             bmesh.ops.reverse_faces(bm, faces=up)
             bm.normal_update()
         bm.faces.layers.int.remove(floor_layer)
+    lap(stats, "orient")
 
     if fix_normals and bm.faces:
         # after orientation: overlapping layers then point the same way
@@ -204,6 +223,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
         stats["overlap_area"] = round(area, 3)
 
     stats["degenerate_removed"] += remove_degenerate(bm, merge_distance)
+    lap(stats, "overlaps")
 
     # Last geometry step: nothing may weld after the twins exist.
     if two_sided:
@@ -213,6 +233,7 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
         layer = bm.faces.layers.int.get(TWO_SIDED_LAYER)
         if layer is not None:
             bm.faces.layers.int.remove(layer)
+    lap(stats, "two_sided")
     return bm, materials, stats, removed_bm
 
 
