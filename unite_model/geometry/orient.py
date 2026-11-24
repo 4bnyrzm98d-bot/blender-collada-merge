@@ -266,6 +266,33 @@ def mark_open_undersides(bm, min_up=0.3, eps=1e-3, inset=0.05, max_samples=400):
     return len(marked)
 
 
+def spread_two_sided(bm, layer, plane_tol=1e-4):
+    """Two-sidedness belongs to a flat surface, not to one of its triangles.
+
+    The rays decide per face; of a gate split into triangles one may come out
+    two-sided and its neighbour not, so the gate shows one grey triangle among
+    red ones. Values 1 and 2 are spread to faces joined by an edge and lying
+    in the same plane, pointing the same way. Returns the number of faces added.
+    """
+    stack = [f for f in bm.faces if f[layer] in (1, 2)]
+    added = 0
+    while stack:
+        f = stack.pop()
+        n, p0 = f.normal, f.verts[0].co
+        for e in f.edges:
+            if len(e.link_faces) != 2:
+                continue
+            g = e.link_faces[0] if e.link_faces[1] is f else e.link_faces[1]
+            if g[layer] or g.normal.dot(n) < 0.9999:
+                continue
+            if any(abs((v.co - p0).dot(n)) > plane_tol for v in g.verts):
+                continue
+            g[layer] = f[layer]
+            added += 1
+            stack.append(g)
+    return added
+
+
 def make_two_sided(bm, inner_offset=0.01):
     """Give every face marked in TWO_SIDED_LAYER a reversed back face.
 
@@ -289,6 +316,7 @@ def make_two_sided(bm, inner_offset=0.01):
     # new layers invalidate face references: create before collecting faces
     rim_layer = bm.faces.layers.int.new(RIM_LAYER)
     layer = bm.faces.layers.int.get(TWO_SIDED_LAYER)
+    spread_two_sided(bm, layer)
     faces = [f for f in bm.faces if f[layer]]
     rims = []
     for value in (1, 2, 3):
