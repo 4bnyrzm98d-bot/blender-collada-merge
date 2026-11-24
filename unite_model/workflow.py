@@ -76,7 +76,8 @@ def set_verdict(collection, obj, verdict, reasons, metrics=None):
         target[VERDICT_REASON_KEY] = reason
     if obj is not None and metrics is not None:
         for key in ("back_hits", "bottom_back_hits", "hole_rays", "faces_seen_back", "faces_missing",
-                    "duplicate_faces", "zero_area", "inconsistent_edges", "rays_hit"):
+                    "duplicate_faces", "zero_area", "inconsistent_edges", "rays_hit",
+                    "overlapping_faces"):
             obj["unite_test_" + key] = metrics[key]
         obj["unite_test_back_faces"] = metrics["back_face_ids"]
 
@@ -146,6 +147,7 @@ def repair_collection(context, collection, s, progress=None):
             if metrics is not None:
                 stats["test_back_hits"] = metrics["back_hits"]
                 stats["test_bottom_back_hits"] = metrics["bottom_back_hits"]
+                stats["test_overlapping_faces"] = metrics["overlapping_faces"]
                 stats["test_hole_rays"] = metrics["hole_rays"]
                 stats["test_seconds"] = metrics["seconds"]
     if obj is None:

@@ -23,6 +23,9 @@ the Import section shows a red warning.
      moved to a hidden `<name>_removed` object;
    - narrow slits (up to 0.4 m) are bridged, missing planar faces (e.g. floors) are filled;
    - faces are oriented outward (ray test with a crack-leak probe); hidden inner faces are removed;
+   - coplanar faces lying on top of each other (the same surface twice with another
+     triangulation, a panel drawn onto a wall) are cut so only one layer remains – no z-fighting;
+     a small face on a bigger one stays, the bigger one gets a hole under it;
    - free-standing faces get a reversed twin, faces in niches / under eaves a 1 cm offset twin
      with rims; faces that point up with nothing below them (passage floors, steps, cornice
      tops, eaves without soffit) get a 1 cm offset back face closed by a rim, so the bottom of
@@ -33,7 +36,8 @@ the Import section shows a red warning.
    - no ray from outside lands on the back of a face (red in Face Orientation) – oblique views
      from above and the sides, plus vertical rays from below for the bottom of the model,
    - no ray passes where the original has a visible face (a deleted face),
-   - there are no duplicate and no zero-area faces.
+   - there are no duplicate and no zero-area faces and no faces lying on another face pointing the
+     same way (z-fighting, over 10 cm²).
 
    Rays through hairline cracks, the underside of the base and two-sided faces do not count.
 
@@ -63,6 +67,7 @@ unite_model/
 │   ├── build.py         meshes → one bmesh, back faces, welding, slivers
 │   ├── unrelated.py     parts that do not belong to the house
 │   ├── fill.py          narrow slits, missing planar faces
+│   ├── overlap.py       coplanar faces on top of each other (z-fighting)
 │   ├── orient.py        outward normals, hidden faces, two-sided faces
 │   └── rays.py          ray casting helpers
 ├── pipeline.py          collection → united bmesh / object (unite_bmesh, unite_collection)

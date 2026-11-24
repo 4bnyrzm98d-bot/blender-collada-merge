@@ -24,6 +24,7 @@ from mathutils import Vector
 from .geometry.build import exact_area, build_bmesh, remove_back_faces, remove_degenerate, weld
 from .geometry.fill import close_gaps, fill_missing_faces
 from .geometry.orient import make_two_sided, mark_open_undersides, orient_outward
+from .geometry.overlap import remove_coplanar_overlaps
 from .geometry.unrelated import describe_parts, find_unrelated
 from .tags import FLOOR_LAYER, REMOVED_TAG, RESULT_TAG, TWO_SIDED_LAYER, is_generated
 
@@ -195,6 +196,12 @@ def unite_bmesh(collection, merge_distance=1e-4, fix_normals=True,
             bmesh.ops.reverse_faces(bm, faces=up)
             bm.normal_update()
         bm.faces.layers.int.remove(floor_layer)
+
+    if fix_normals and bm.faces:
+        # after orientation: overlapping layers then point the same way
+        changed, area = remove_coplanar_overlaps(bm)
+        stats["overlap_faces_fixed"] = changed
+        stats["overlap_area"] = round(area, 3)
 
     stats["degenerate_removed"] += remove_degenerate(bm, merge_distance)
 

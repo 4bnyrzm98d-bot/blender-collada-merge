@@ -17,5 +17,6 @@ build      - meshes -> one world-space bmesh, back faces, welding, slivers
 unrelated  - parts that do not belong to the house
 fill       - narrow slits and missing planar faces
 orient     - outward normals, hidden inner faces, two-sided faces
+overlap    - coplanar faces on top of each other (z-fighting)
 rays       - ray casting helpers used by orient
 """

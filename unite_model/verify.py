@@ -26,6 +26,8 @@ removing hidden faces (so nothing visible is missing in it).
 * back hit from below - a vertical ray from under the model lands on the
   back of a face: the bottom of the model shows red (a passage floor, a
   step or an eave seen from below).
+* overlapping faces - two faces in the same plane, pointing the same way,
+  partly on top of each other: the surface flickers (z-fighting).
 
 Oblique views come only from above the horizon: from below they enter the
 open bottom of a model and see things nobody can see. The bottom itself is
@@ -44,6 +46,7 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 from .geometry.build import exact_area
+from .geometry.overlap import overlapping_faces
 
 # 24 azimuths x 4 elevations above the horizon + one view from the top
 VIEWS = [Vector((math.cos(a), math.sin(a), h)).normalized()
@@ -66,8 +69,9 @@ def _position_key(face):
 
 
 def topology_counts(bm):
-    """Duplicate faces (same vertices), zero-area faces, edges whose two faces
-    disagree on winding (invisible, reported only)."""
+    """Duplicate faces (same vertices), zero-area faces, faces lying on another
+    face pointing the same way (z-fighting), edges whose two faces disagree on
+    winding (invisible, reported only)."""
     keys, dup = set(), 0
     for f in bm.faces:
         k = frozenset(v.index for v in f.verts)
@@ -75,7 +79,9 @@ def topology_counts(bm):
         keys.add(k)
     zero = sum(1 for f in bm.faces if exact_area(f) < 1e-9)
     incons = sum(1 for e in bm.edges if len(e.link_faces) == 2 and not e.is_contiguous)
-    return {"duplicate_faces": dup, "zero_area": zero, "inconsistent_edges": incons}
+    overlaps = overlapping_faces(bm)
+    return {"duplicate_faces": dup, "zero_area": zero, "inconsistent_edges": incons,
+            "overlapping_faces": len(overlaps), "overlap_face_ids": overlaps[:200]}
 
 
 def verify_bmesh(bm, ref_bm, grid=120, probe=0.02, depth_tol=0.25, progress=None):
@@ -178,6 +184,8 @@ def verify_bmesh(bm, ref_bm, grid=120, probe=0.02, depth_tol=0.25, progress=None
         "grid": grid,
     }
     metrics.update(topology_counts(bm))
+    metrics["back_face_ids"] += [i for i in metrics["overlap_face_ids"]
+                                 if i not in set(metrics["back_face_ids"])][:100]
     return metrics
 
 
@@ -208,6 +216,8 @@ def judge(metrics, max_back_hits=0, max_holes=0, max_bottom_hits=0, allow_incons
         reasons.append(f"{metrics['hole_rays']} hole rays ({metrics['faces_missing']} missing face(s))")
     if metrics["duplicate_faces"]:
         reasons.append(f"{metrics['duplicate_faces']} duplicate face(s)")
+    if metrics.get("overlapping_faces"):
+        reasons.append(f"{metrics['overlapping_faces']} face(s) lying on another face (z-fighting)")
     if metrics["zero_area"]:
         reasons.append(f"{metrics['zero_area']} zero-area face(s)")
     if not allow_inconsistent and metrics["inconsistent_edges"]:

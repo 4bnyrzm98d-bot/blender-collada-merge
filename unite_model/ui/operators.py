@@ -273,7 +273,7 @@ class UNITE_OT_sort(bpy.types.Operator):
 
 
 class UNITE_OT_select_problems(bpy.types.Operator):
-    """Edit the active repaired model with the faces the test saw from the back selected"""
+    """Edit the active repaired model with the faces the test found selected (seen from the back, or lying on another face)"""
     bl_idname = "unite_model.select_problems"
     bl_label = "Select Problem Faces"
     bl_options = {'REGISTER', 'UNDO'}
@@ -287,7 +287,7 @@ class UNITE_OT_select_problems(bpy.types.Operator):
         obj = context.active_object
         ids = set(obj.get("unite_test_back_faces", []))
         if not ids:
-            self.report({'INFO'}, "The test saw no face from the back"
+            self.report({'INFO'}, "The test found no problem face"
                         + ("" if obj.get("unite_verdict") else " (model not tested)"))
             return {'CANCELLED'}
         _object_mode(context)
@@ -310,7 +310,7 @@ class UNITE_OT_select_problems(bpy.types.Operator):
         bm.select_flush_mode()
         bmesh.update_edit_mesh(obj.data)
         context.tool_settings.mesh_select_mode = (False, False, True)
-        self.report({'INFO'}, f"{len(ids)} face(s) seen from the back are selected")
+        self.report({'INFO'}, f"{len(ids)} problem face(s) selected")
         return {'FINISHED'}
 
 

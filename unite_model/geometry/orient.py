@@ -22,8 +22,11 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 from .build import weld
+from .overlap import remove_coplanar_overlaps
 from .rays import free_directions, hemisphere_dirs, outside_hits, outside_views
 from ..tags import TWO_SIDED_LAYER
+
+RIM_LAYER = "unite_rim"
 
 
 def orient_outward(bm, ray_count=48, remove_enclosed=True, on_ground=True,
@@ -281,10 +284,13 @@ def make_two_sided(bm, inner_offset=0.01):
     The back faces get their own vertices, so no later weld can merge them.
     Returns the number of faces made two-sided.
     """
-    layer = bm.faces.layers.int.get(TWO_SIDED_LAYER)
-    if layer is None:
+    if bm.faces.layers.int.get(TWO_SIDED_LAYER) is None:
         return 0
+    # new layers invalidate face references: create before collecting faces
+    rim_layer = bm.faces.layers.int.new(RIM_LAYER)
+    layer = bm.faces.layers.int.get(TWO_SIDED_LAYER)
     faces = [f for f in bm.faces if f[layer]]
+    rims = []
     for value in (1, 2, 3):
         group = [f for f in faces if f[layer] == value]
         if not group:
@@ -295,7 +301,22 @@ def make_two_sided(bm, inner_offset=0.01):
         if value == 2:
             free = [e for e in edges if len(e.link_faces) == 1]
         elif value == 3:  # outline of the marked area
-            free = [e for e in edges if sum(1 for g in e.link_faces if g in members) == 1]
+            free = []
+            for e in edges:
+                inside = [g for g in e.link_faces if g in members]
+                if len(inside) != 1:
+                    continue
+                # a side face going down from the edge in the plane the rim
+                # would have already closes the slit; a rim there would lie on
+                # it (z-fighting)
+                mid = (e.verts[0].co + e.verts[1].co) * 0.5
+                n = normals[inside[0]]
+                along = (e.verts[1].co - e.verts[0].co).normalized()
+                if any(abs(g.normal.dot(n)) < 0.02 and abs(g.normal.dot(along)) < 0.02
+                       and (g.calc_center_median() - mid).dot(n) < -1e-4
+                       for g in e.link_faces if g not in members):
+                    continue
+                free.append(e)
         else:
             free = []
         dup = bmesh.ops.duplicate(bm, geom=group)
@@ -330,5 +351,15 @@ def make_two_sided(bm, inner_offset=0.01):
             rim.normal_update()
             if rim.normal.dot((v1.co + v2.co) * 0.5 - f.calc_center_median()) < 0.0:
                 rim.normal_flip()
+            rim[rim_layer] = 1
+            rims.append(rim)
     bm.faces.layers.int.remove(layer)
+    if rims:
+        # where a rim lies on an existing face (a side face already closes the
+        # slit) the rim is cut away: no z-fighting. Pieces of a cut rim keep
+        # the layer, so a second pass sees them too.
+        rim_layer = bm.faces.layers.int.get(RIM_LAYER)
+        for _ in range(2):
+            remove_coplanar_overlaps(bm, only=[f for f in bm.faces if f[rim_layer]])
+    bm.faces.layers.int.remove(bm.faces.layers.int.get(RIM_LAYER))
     return len(faces)
